@@ -16,11 +16,10 @@ export const WelcomeScreen = ({
   <div className="flex items-center justify-center flex-1 px-4">
     <div className="w-full max-w-3xl mx-auto text-center">
       <h1 className="mb-4 text-6xl font-bold text-transparent uppercase bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text">
-        <span className="text-white">TanStack</span> Chat
+        <span className="text-white">Civic-Rise</span> Chat
       </h1>
       <p className="w-2/3 mx-auto mb-6 text-lg text-gray-400">
-        You can ask me about anything, I might or might not have a good
-        answer, but you can still ask.
+        AI Career & Entrepreneurship Copilot for Montgomery Citizens. A mobile-friendly conversational assistant (web + mobile) that uses GenAI and city datasets to guide residents through career and entrepreneurial pathways.
       </p>
       <form onSubmit={handleSubmit}>
         <div className="relative max-w-xl mx-auto">
