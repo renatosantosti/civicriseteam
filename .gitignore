@@ -1,8 +1,19 @@
+# Dependencies and build
 node_modules
-.DS_Store
+frontend/node_modules
 dist
 dist-ssr
 *.local
 .output
 .netlify
 .env
+frontend/.env
+backend/.env
+
+# Python / backend
+backend/__pycache__
+backend/**/__pycache__
+backend/.venv
+backend/.env
+*.pyc
+.venv

@@ -1,6 +1,8 @@
-[template.environment]
-ANTHROPIC_API_KEY = "Add your Anthropic API key here"
-
+# Monorepo: frontend app lives in frontend/
 [build]
-command = "npm run build"
-publish = "dist/client"
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "22"
