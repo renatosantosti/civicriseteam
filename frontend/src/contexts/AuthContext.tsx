@@ -6,8 +6,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 
-const STORAGE_KEY = 'civicrise_user';
+const TOKEN_KEY = 'civicrise_token';
+const USER_KEY = 'civicrise_user';
 
 export interface User {
   id: string;
@@ -18,6 +21,7 @@ export interface User {
 
 interface AuthContextValue {
   user: User | null;
+  token: string | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, zipCode: string) => Promise<void>;
@@ -26,76 +30,84 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function loadUser(): User | null {
-  if (typeof window === 'undefined') return null;
+function loadStored(): { token: string | null; user: User | null } {
+  if (typeof window === 'undefined') return { token: null, user: null };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as User;
+    const token = localStorage.getItem(TOKEN_KEY);
+    const rawUser = localStorage.getItem(USER_KEY);
+    const user = rawUser ? (JSON.parse(rawUser) as User) : null;
+    return { token, user };
   } catch {
-    return null;
+    return { token: null, user: null };
   }
 }
 
-function saveUser(user: User | null) {
+function saveStored(token: string | null, user: User | null) {
   if (typeof window === 'undefined') return;
-  if (user) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-  } else {
-    localStorage.removeItem(STORAGE_KEY);
-  }
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(USER_KEY);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const signUpMutation = useMutation(api.auth.signUp);
+  const signInMutation = useMutation(api.auth.signIn);
+
   useEffect(() => {
-    setUser(loadUser());
+    const { token: t, user: u } = loadStored();
+    setToken(t);
+    setUser(u);
     setIsLoading(false);
   }, []);
 
-  const signIn = useCallback(async (email: string, _password: string) => {
-    setIsLoading(true);
-    const existing = loadUser();
-    if (existing && existing.email === email) {
-      setUser(existing);
-    } else {
-      const newUser: User = {
-        id: crypto.randomUUID(),
-        name: email.split('@')[0] || 'User',
-        email,
-        zipCode: undefined,
-      };
-      setUser(newUser);
-      saveUser(newUser);
-    }
-    setIsLoading(false);
-  }, []);
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      setIsLoading(true);
+      try {
+        const result = await signInMutation({ email, password });
+        const u: User = {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          zipCode: result.user.zipCode,
+        };
+        setToken(result.token);
+        setUser(u);
+        saveStored(result.token, u);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [signInMutation]
+  );
 
   const signUp = useCallback(
-    async (name: string, email: string, _password: string, zipCode: string) => {
+    async (name: string, email: string, password: string, zipCode: string) => {
       setIsLoading(true);
-      const newUser: User = {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        zipCode,
-      };
-      setUser(newUser);
-      saveUser(newUser);
-      setIsLoading(false);
+      try {
+        await signUpMutation({ name, email, password, zipCode });
+        await signIn(email, password);
+      } finally {
+        setIsLoading(false);
+      }
     },
-    []
+    [signUpMutation, signIn]
   );
 
   const signOut = useCallback(() => {
+    setToken(null);
     setUser(null);
-    saveUser(null);
+    saveStored(null, null);
   }, []);
 
   const value: AuthContextValue = {
     user,
+    token,
     isLoading,
     signIn,
     signUp,

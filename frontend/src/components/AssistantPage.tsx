@@ -9,8 +9,10 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { TopBanner } from './TopBanner';
 import { useConversations, useAppState, store, actions } from '../store';
 import { genAIResponse, type Message } from '../utils';
+import { useAuth } from '../contexts/AuthContext';
 
 export function AssistantPage() {
+  const { token } = useAuth();
   const {
     conversations,
     currentConversationId,
@@ -69,6 +71,7 @@ export function AssistantPage() {
         }
         const response = await genAIResponse({
           data: { messages: [...messages, userMessage], systemPrompt },
+          authToken: token ?? undefined,
         });
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No reader found in response');
@@ -144,7 +147,7 @@ export function AssistantPage() {
         await addMessage(conversationId, errorMessage);
       }
     },
-    [messages, getActivePrompt, addMessage]
+    [messages, getActivePrompt, addMessage, token]
   );
 
   const handleSubmit = useCallback(

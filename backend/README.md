@@ -2,6 +2,14 @@
 
 FastAPI backend with SOLID structure and provider-agnostic LLM agent services.
 
+## Auth (JWT)
+
+The chat endpoint requires a valid JWT issued by the frontend’s Convex auth (sign-in). Set in `.env`:
+
+- **JWT_SECRET** – Must match the `JWT_SECRET` environment variable in your Convex deployment. The frontend sends `Authorization: Bearer <token>`; the backend verifies the token and uses the `sub` claim as the current user id.
+
+If `JWT_SECRET` is missing or wrong, `POST /api/chat/stream` will return 401 or 503.
+
 ## LLM provider
 
 The backend supports multiple LLM providers. Set in `.env`:
@@ -30,4 +38,4 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 - Health: `GET http://localhost:8000/health`
-- Chat stream: `POST http://localhost:8000/api/chat/stream` with JSON body `{ "messages": [...], "systemPrompt": { "value": "...", "enabled": true } }`
+- Chat stream: `POST http://localhost:8000/api/chat/stream` with header `Authorization: Bearer <jwt>` and JSON body `{ "messages": [...], "systemPrompt": { "value": "...", "enabled": true } }`

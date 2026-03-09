@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     llm_model: str = ""
     llm_temperature: float = 0.7
     app_name: str = "Civic Copilot API"
+    jwt_secret: str = ""
 
 
 settings = Settings()

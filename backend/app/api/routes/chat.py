@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
-from app.core.dependencies import get_chat_service
-from app.domain.entities import ChatRequest, SystemPrompt
+from app.core.dependencies import get_chat_service, get_current_user
+from app.domain.entities import ChatRequest, CurrentUser, SystemPrompt
 from app.services.chat_service import ChatService
 
 router = APIRouter()
@@ -12,9 +12,11 @@ router = APIRouter()
 @router.post("/stream")
 async def chat_stream(
     body: ChatRequest,
+    current_user: CurrentUser = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    """Stream chat response as NDJSON (content_block_delta lines). Frontend expects this format."""
+    """Stream chat response as NDJSON (content_block_delta lines). Requires auth (Bearer JWT from Convex)."""
+    _ = current_user  # available for logging or future per-user behavior
     if not settings.llm_api_key:
         raise HTTPException(
             status_code=503,
