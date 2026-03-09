@@ -15,5 +15,8 @@ class Settings(BaseSettings):
     app_name: str = "Civic Copilot API"
     jwt_secret: str = ""
 
+    # Comma-separated list of CORS origins (e.g. https://your-app.netlify.app). Used with localhost origins.
+    cors_origins: str = ""
+
 
 settings = Settings()
