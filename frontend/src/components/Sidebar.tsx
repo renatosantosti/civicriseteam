@@ -1,4 +1,5 @@
 import { PlusCircle, MessageCircle, Trash2, Edit2 } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 
 interface SidebarProps {
   conversations: Array<{ id: string; title: string }>;
@@ -34,6 +35,12 @@ export const Sidebar = ({
         <PlusCircle className="w-4 h-4" />
         New Chat
       </button>
+      <Link
+        to="/dispatcher"
+        className="mt-2 flex items-center justify-center w-full gap-2 px-3 py-2 text-sm font-medium text-orange-200 rounded-lg border border-orange-500/40 hover:bg-orange-500/10"
+      >
+        Dispatcher View
+      </Link>
     </div>
 
     {/* Chat List */}
