@@ -1,0 +1,12 @@
+[template.environment]
+ANTHROPIC_API_KEY = "Add your Anthropic API key here"
+
+[build]
+command = "npm run build"
+publish = "dist/client"
+
+[functions]
+directory = "netlify/functions"
+
+[functions."crawl-city-sources"]
+schedule = "0 * * * *"
