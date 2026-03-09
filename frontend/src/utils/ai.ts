@@ -93,6 +93,12 @@ function getRagDebugHeaders(debug: RagDebugPayload): Record<string, string> {
   return { 'X-RAG-Debug': JSON.stringify(debug) }
 }
 
+function sanitizeApiKey(value: string | undefined): string | undefined {
+  if (value == null || value === '') return undefined
+  const cleaned = value.replace(/[\r\n\uFEFF\u200B-\u200D\uFFFE]/g, '').trim()
+  return cleaned.length > 0 ? cleaned : undefined
+}
+
 /** Load .env and .env.local from frontend root (same order as test-openai-key.mjs). Only runs on server. */
 async function loadRagEnvFromFiles(): Promise<Record<string, string>> {
   const path = await import('path')
@@ -123,19 +129,21 @@ async function loadRagEnvFromFiles(): Promise<Record<string, string>> {
     const out: Record<string, string> = {}
     try {
       if (!fs.existsSync(filePath)) return out
-      const content = fs.readFileSync(filePath, 'utf8')
+      let content = fs.readFileSync(filePath, 'utf8')
+      content = content.replace(/^\uFEFF/, '')
       for (const line of content.split('\n')) {
         const trimmed = line.trim()
         if (!trimmed || trimmed.startsWith('#')) continue
         const eq = trimmed.indexOf('=')
         if (eq === -1) continue
-        const key = trimmed.slice(0, eq).trim()
+        const key = trimmed.slice(0, eq).trim().replace(/\uFEFF/g, '')
         let val = trimmed.slice(eq + 1).trim()
         if (
           (val.startsWith('"') && val.endsWith('"')) ||
           (val.startsWith("'") && val.endsWith("'"))
         )
           val = val.slice(1, -1)
+        val = val.replace(/[\r\n\uFEFF]/g, '').trim()
         out[key] = val
       }
     } catch {
@@ -177,16 +185,24 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
     }) => d,
   )
   .handler(async ({ data }) => {
+    console.log('[RAG] Handler started', {
+      messagesCount: data.messages?.length ?? 0,
+      mode: data.mode,
+      residentZip: data.residentZip ?? null,
+    })
     const fileEnv = await loadRagEnvFromFiles()
+    console.log('[RAG] fileEnv loaded', {
+      hasRagKey: !!fileEnv.RAG_LLM_API_KEY,
+      providerFromFile: fileEnv.RAG_LLM_PROVIDER ?? '(none)',
+    })
     const provider = (
       fileEnv.RAG_LLM_PROVIDER ??
       process.env.RAG_LLM_PROVIDER ??
       'anthropic'
     ).toLowerCase()
-    const apiKey = (
-      fileEnv.RAG_LLM_API_KEY ??
-      process.env.RAG_LLM_API_KEY
-    )?.trim()
+    const apiKey = sanitizeApiKey(
+      fileEnv.RAG_LLM_API_KEY ?? process.env.RAG_LLM_API_KEY
+    )
     const modelOverride = (
       fileEnv.RAG_LLM_MODEL ??
       process.env.RAG_LLM_MODEL
@@ -206,6 +222,17 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
       resolvedModel,
       envModelSet
     )
+    if (process.env.NODE_ENV !== 'production' && apiKey) {
+      console.log(
+        '[RAG] API key preview: %s...%s (length %s)',
+        apiKey.slice(0, 6),
+        apiKey.slice(-4),
+        apiKey.length
+      )
+    }
+    const keyPreview = apiKey
+      ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)} (len ${apiKey.length})`
+      : '(none)'
 
     if (!apiKey) {
       return new Response(
@@ -274,15 +301,33 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
       : 'Verified retrieved context: none available.'
     const systemPrompt = `${buildSystemPrompt(data.mode)}\n\n${zipContext}\n\n${ragContext}`
 
+    console.log('[RAG] Before LLM call', {
+      provider,
+      resolvedModel,
+      formattedMessagesCount: formattedMessages.length,
+      systemPromptLength: systemPrompt.length,
+      apiKeyPreview: keyPreview,
+    })
+
     try {
       let rawText: string
 
       if (provider === 'openai') {
-        const openai = new OpenAI({ apiKey, timeout: 30000 })
         const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: 'system', content: systemPrompt },
           ...formattedMessages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         ]
+        console.log('[RAG] OpenAI branch', {
+          apiKeyPreview: keyPreview,
+          resolvedModel,
+          messagesCount: openaiMessages.length,
+        })
+        console.log('[RAG] Calling openai.chat.completions.create')
+        const openai = new OpenAI({
+          apiKey,
+          timeout: 30000,
+          baseURL: 'https://api.openai.com/v1',
+        })
         const completion = await openai.chat.completions.create({
           model: resolvedModel,
           messages: openaiMessages,
@@ -290,6 +335,12 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
         })
         rawText = completion.choices[0]?.message?.content ?? ''
       } else {
+        console.log('[RAG] Anthropic branch', {
+          apiKeyPreview: keyPreview,
+          resolvedModel,
+          messagesCount: formattedMessages.length,
+        })
+        console.log('[RAG] Calling anthropic.messages.create')
         const anthropic = new Anthropic({ apiKey, timeout: 30000 })
         const completion = await anthropic.messages.create({
           model: resolvedModel,
@@ -325,6 +376,14 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
       })
     } catch (error) {
       console.error('Error in genAIResponse:', error)
+      console.error('[RAG] Caught error', {
+        errorName: error instanceof Error ? error.name : undefined,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        status: (error as { status?: number })?.status,
+        provider,
+        apiKeyPreview: keyPreview,
+        resolvedModel,
+      })
 
       let errorMessage = 'Failed to get AI response'
       let statusCode = 500
@@ -343,6 +402,8 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
           errorMessage = error.message
         }
       } else if (error && typeof error === 'object' && (error as { status?: number }).status === 401) {
+        console.error('Authentication failed. Please check your RAG_LLM_API_KEY.', error)
+
         errorMessage = 'Authentication failed. Please check your RAG_LLM_API_KEY.'
         statusCode = 401
       }
