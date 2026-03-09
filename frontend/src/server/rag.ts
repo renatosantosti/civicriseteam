@@ -33,6 +33,15 @@ const DEFAULT_STORE_NAME = process.env.NETLIFY_RAG_STORE || 'civic-rag'
 const DEFAULT_TOP_K = Number(process.env.NETLIFY_RAG_TOP_K || '5')
 
 function getRagStore() {
+  const siteID = process.env.NETLIFY_SITE_ID?.trim()
+  const token = process.env.NETLIFY_AUTH_TOKEN?.trim()
+  if (siteID && token) {
+    return getStore({
+      name: DEFAULT_STORE_NAME,
+      siteID,
+      token,
+    })
+  }
   return getStore(DEFAULT_STORE_NAME)
 }
 

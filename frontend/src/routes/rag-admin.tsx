@@ -120,7 +120,16 @@ function RagAdminPage() {
           </button>
 
           {error && (
-            <p className="text-sm text-red-300">{error}</p>
+            <>
+              <p className="text-sm text-red-300">{error}</p>
+              {(error.includes('siteID') ||
+                error.includes('token') ||
+                error.includes('environment has not been configured')) && (
+                <p className="text-sm text-amber-200 mt-2">
+                  Para desenvolvimento local, defina NETLIFY_SITE_ID e NETLIFY_AUTH_TOKEN no .env (veja .env.example e a secção &quot;Configuração no Netlify&quot; na documentação).
+                </p>
+              )}
+            </>
           )}
 
           {result && (
