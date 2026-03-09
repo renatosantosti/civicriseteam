@@ -8,8 +8,8 @@ interface CrawlRecord {
 
 // Scheduled entry point for crawling verified Montgomery city sources via Bright Data.
 export const handler: Handler = async () => {
-  const endpoint = process.env.BRIGHTDATA_CRAWLER_ENDPOINT
-  const token = process.env.BRIGHTDATA_TOKEN
+  const endpoint = process.env.BRIGHTDATA_CRAWLER_ENDPOINT;
+  const token = process.env.BRIGHTDATA_TOKEN;
 
   if (!endpoint || !token) {
     return {
