@@ -1,66 +1,97 @@
 import { createServerFn } from '@tanstack/react-start'
 import { Anthropic } from '@anthropic-ai/sdk'
 
+export type AppMode = 'citizen' | 'dispatcher'
+
+export interface Citation {
+  sourceName: string
+  note?: string
+}
+
+export interface IncidentWarning {
+  title: string
+  area: string
+  summary: string
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  citations?: Citation[]
+  incidentWarning?: IncidentWarning
 }
 
-const DEFAULT_SYSTEM_PROMPT = `You are TanStack Chat, an AI assistant using Markdown for clear and structured responses. Format your responses following these guidelines:
+interface AIResponsePayload {
+  answer: string
+  citations?: Citation[]
+  incidentWarning?: IncidentWarning
+}
 
-1. Use headers for sections:
-   # For main topics
-   ## For subtopics
-   ### For subsections
+const BASE_GUARDRAILS = `You are Montgomery Civic Copilot.
 
-2. For lists and steps:
-   - Use bullet points for unordered lists
-   - Number steps when sequence matters
-   
-3. For code:
-   - Use inline \`code\` for short snippets
-   - Use triple backticks with language for blocks:
-   \`\`\`python
-   def example():
-       return "like this"
-   \`\`\`
+Rules:
+- Stay factual and grounded in verified data only.
+- Never fabricate city schedules, incidents, ticket statuses, or policies.
+- If verified information is missing, say: "I don't have verified information on that yet, but here's the correct next step."
+- Keep responses concise and actionable.
+- Use plain language.
+- Include structured call-to-action bullets when helpful.
 
-4. For emphasis:
-   - Use **bold** for important points
-   - Use *italics* for emphasis
-   - Use > for important quotes or callouts
+Output strictly as JSON with this exact shape:
+{
+  "answer": "string",
+  "citations": [{ "sourceName": "string", "note": "optional string" }],
+  "incidentWarning": { "title": "string", "area": "string", "summary": "string" } | null
+}
 
-5. For structured data:
-   | Use | Tables |
-   |-----|---------|
-   | When | Needed |
+Use an empty array for citations when no verified source is available.
+Use null for incidentWarning when there is no verified active disruption.`
 
-6. Break up long responses with:
-   - Clear section headers
-   - Appropriate spacing between sections
-   - Bullet points for better readability
-   - Short, focused paragraphs
+const CITIZEN_SYSTEM_PROMPT = `Citizen-facing mode.
+- Help residents with city services and 311 guidance.
+- Keep tone warm and resident-friendly.
+- If user reports an issue, suggest category and next step for Snap & Submit.`
 
-7. For technical content:
-   - Always specify language for code blocks
-   - Use inline \`code\` for technical terms
-   - Include example usage where helpful
+const DISPATCHER_SYSTEM_PROMPT = `Dispatcher mode.
+- Help city workers summarize, triage, and sequence incident clusters.
+- Keep tone operational and concise.
+- Do not publish incidents, dispatch crews, or alter records.`
 
-Keep responses concise and well-structured. Use appropriate Markdown formatting to enhance readability and understanding.`
+function buildSystemPrompt(mode: AppMode): string {
+  const modePrompt = mode === 'dispatcher' ? DISPATCHER_SYSTEM_PROMPT : CITIZEN_SYSTEM_PROMPT
+  return `${BASE_GUARDRAILS}\n\n${modePrompt}`
+}
 
-// Non-streaming implementation
+function parseAIResponse(text: string): AIResponsePayload {
+  const normalized = text.trim()
+  const blockMatch = normalized.match(/```json\s*([\s\S]*?)```/i)
+  const candidate = blockMatch?.[1] ?? normalized
+
+  try {
+    const parsed = JSON.parse(candidate) as AIResponsePayload
+    return {
+      answer: parsed.answer?.trim() || 'I could not produce a verified answer right now.',
+      citations: Array.isArray(parsed.citations) ? parsed.citations : [],
+      incidentWarning: parsed.incidentWarning ?? undefined,
+    }
+  } catch {
+    return {
+      answer: normalized || 'I could not produce a verified answer right now.',
+      citations: [],
+    }
+  }
+}
+
 export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' })
   .inputValidator(
     (d: {
       messages: Array<Message>
-      systemPrompt?: { value: string; enabled: boolean }
+      mode: AppMode
+      residentZip?: string
     }) => d,
   )
-  // .middleware([loggingMiddleware])
   .handler(async ({ data }) => {
-    // Check for API key in environment variables
-    // This should ONLY use server-side environment variables (no VITE_ prefix)
     const apiKey = process.env.ANTHROPIC_API_KEY
 
     if (!apiKey) {
@@ -69,15 +100,11 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' })
       )
     }
 
-    // Create Anthropic client with proper configuration
-    // Don't set baseURL - Netlify AI Gateway will intercept requests to api.anthropic.com automatically
     const anthropic = new Anthropic({
       apiKey,
-      // Add proper timeout to avoid connection issues
-      timeout: 30000 // 30 seconds timeout
+      timeout: 30000,
     })
 
-    // Filter out error messages and empty messages
     const formattedMessages = data.messages
       .filter(
         (msg) =>
@@ -96,57 +123,29 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' })
       })
     }
 
-    const systemPrompt = data.systemPrompt?.enabled
-      ? `${DEFAULT_SYSTEM_PROMPT}\n\n${data.systemPrompt.value}`
-      : DEFAULT_SYSTEM_PROMPT
-
-    // Debug log to verify prompt layering
-    console.log('System Prompt Configuration:', {
-      hasCustomPrompt: data.systemPrompt?.enabled,
-      customPromptValue: data.systemPrompt?.value,
-      finalPrompt: systemPrompt,
-    })
+    const zipContext = data.residentZip
+      ? `User ZIP context: ${data.residentZip}. Add incidentWarning only when verified context supports it.`
+      : 'No ZIP context supplied.'
+    const systemPrompt = `${buildSystemPrompt(data.mode)}\n\n${zipContext}`
 
     try {
-      const stream = await anthropic.messages.stream({
+      const completion = await anthropic.messages.create({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4096,
+        max_tokens: 1200,
         system: systemPrompt,
         messages: formattedMessages,
       })
 
-      // Transform the Anthropic stream to match the expected client format
-      // The client reads chunks and expects each chunk to contain one complete JSON object
-      const encoder = new TextEncoder()
-      const transformedStream = new ReadableStream({
-        async start(controller) {
-          try {
-            for await (const event of stream) {
-              // Only send content_block_delta events with text
-              if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-                const chunk = {
-                  type: 'content_block_delta',
-                  delta: {
-                    type: 'text_delta',
-                    text: event.delta.text,
-                  },
-                }
-                // Encode each JSON object as a separate chunk
-                // This ensures the decoder can parse each chunk independently
-                controller.enqueue(encoder.encode(JSON.stringify(chunk) + '\n'))
-              }
-            }
-            controller.close()
-          } catch (error) {
-            console.error('Stream error:', error)
-            controller.error(error)
-          }
-        },
-      })
+      const rawText = completion.content
+        .filter((block) => block.type === 'text')
+        .map((block) => ('text' in block ? block.text : ''))
+        .join('\n')
 
-      return new Response(transformedStream, {
+      const parsed = parseAIResponse(rawText)
+
+      return new Response(JSON.stringify(parsed), {
         headers: {
-          'Content-Type': 'application/x-ndjson',
+          'Content-Type': 'application/json',
         },
       })
     } catch (error) {
@@ -171,8 +170,9 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' })
       }
       
       return new Response(JSON.stringify({ 
-        error: errorMessage,
-        details: error instanceof Error ? error.name : undefined
+        answer: errorMessage,
+        citations: [],
+        details: error instanceof Error ? error.name : undefined,
       }), {
         status: statusCode,
         headers: { 'Content-Type': 'application/json' },

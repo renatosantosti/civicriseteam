@@ -20,12 +20,28 @@ export const get = query({
 export const create = mutation({
   args: {
     title: v.string(),
+    mode: v.optional(v.union(v.literal('citizen'), v.literal('dispatcher'))),
     messages: v.optional(
       v.array(
         v.object({
           id: v.string(),
           role: v.union(v.literal("user"), v.literal("assistant")),
           content: v.string(),
+          citations: v.optional(
+            v.array(
+              v.object({
+                sourceName: v.string(),
+                note: v.optional(v.string()),
+              })
+            )
+          ),
+          incidentWarning: v.optional(
+            v.object({
+              title: v.string(),
+              area: v.string(),
+              summary: v.string(),
+            })
+          ),
         })
       )
     ),
@@ -33,6 +49,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     return await ctx.db.insert("conversations", {
       title: args.title,
+      mode: args.mode,
       messages: args.messages || [],
     });
   },
@@ -57,6 +74,21 @@ export const addMessage = mutation({
       id: v.string(),
       role: v.union(v.literal("user"), v.literal("assistant")),
       content: v.string(),
+      citations: v.optional(
+        v.array(
+          v.object({
+            sourceName: v.string(),
+            note: v.optional(v.string()),
+          })
+        )
+      ),
+      incidentWarning: v.optional(
+        v.object({
+          title: v.string(),
+          area: v.string(),
+          summary: v.string(),
+        })
+      ),
     }),
   },
   handler: async (ctx, args) => {

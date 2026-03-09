@@ -1,5 +1,5 @@
 import { Store } from '@tanstack/store'
-import type { Message } from '../utils/ai'
+import type { AppMode, Message } from '../utils/ai'
 
 // Types
 export interface Prompt {
@@ -17,6 +17,8 @@ export interface Conversation {
 }
 
 export interface State {
+  appMode: AppMode
+  residentZip: string
   prompts: Prompt[]
   conversations: Conversation[]
   currentConversationId: string | null
@@ -25,6 +27,8 @@ export interface State {
 }
 
 const initialState: State = {
+  appMode: 'citizen',
+  residentZip: '',
   prompts: [],
   conversations: [],
   currentConversationId: null,
@@ -35,6 +39,14 @@ const initialState: State = {
 export const store = new Store<State>(initialState)
 
 export const actions = {
+  setAppMode: (appMode: AppMode) => {
+    store.setState(state => ({ ...state, appMode }))
+  },
+
+  setResidentZip: (residentZip: string) => {
+    store.setState(state => ({ ...state, residentZip }))
+  },
+
   // Prompt actions
   createPrompt: (name: string, content: string) => {
     const id = Date.now().toString()
@@ -151,6 +163,8 @@ export const actions = {
 
 // Selectors
 export const selectors = {
+  getAppMode: (state: State) => state.appMode,
+  getResidentZip: (state: State) => state.residentZip,
   getActivePrompt: (state: State) => state.prompts.find(p => p.is_active),
   getCurrentConversation: (state: State) =>
     state.conversations.find(c => c.id === state.currentConversationId),

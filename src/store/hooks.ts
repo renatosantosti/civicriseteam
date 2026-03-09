@@ -12,6 +12,8 @@ const isConvexAvailable = Boolean(import.meta.env.VITE_CONVEX_URL);
 
 // Original app hook that matches the interface expected by the app
 export function useAppState() {
+  const appMode = useStore(store, s => selectors.getAppMode(s));
+  const residentZip = useStore(store, s => selectors.getResidentZip(s));
   const isLoading = useStore(store, s => selectors.getIsLoading(s));
   const conversations = useStore(store, s => selectors.getConversations(s));
   const currentConversationId = useStore(store, s => selectors.getCurrentConversationId(s));
@@ -19,6 +21,8 @@ export function useAppState() {
   const isBannerVisible = useStore(store, s => selectors.getIsBannerVisible(s));
 
   return {
+    appMode,
+    residentZip,
     conversations,
     currentConversationId,
     isLoading,
@@ -27,6 +31,8 @@ export function useAppState() {
 
     // Actions
     setCurrentConversationId: actions.setCurrentConversationId,
+    setAppMode: actions.setAppMode,
+    setResidentZip: actions.setResidentZip,
     addConversation: actions.addConversation,
     deleteConversation: actions.deleteConversation,
     updateConversationTitle: actions.updateConversationTitle,

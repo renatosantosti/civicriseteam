@@ -10,7 +10,7 @@ import {
   WelcomeScreen,
   TopBanner
 } from '../components'
-import { useConversations, useAppState, store, actions } from '../store'
+import { useConversations, useAppState, actions } from '../store'
 import { genAIResponse, type Message } from '../utils'
 
 function Home() {
@@ -25,7 +25,7 @@ function Home() {
     addMessage,
   } = useConversations()
   
-  const { isLoading, setLoading, getActivePrompt } = useAppState()
+  const { isLoading, setLoading, appMode, residentZip } = useAppState()
 
   // Memoize messages to prevent unnecessary re-renders
   const messages = useMemo(() => currentConversation?.messages || [], [currentConversation]);
@@ -53,7 +53,7 @@ function Home() {
     scrollToBottom(false)
   }, [messages, scrollToBottom])
 
-  // Smooth scroll during streaming
+  // Keep latest message visible while waiting for the assistant.
   useEffect(() => {
     if (pendingMessage && isLoading) {
       scrollToBottom(true)
@@ -69,111 +69,27 @@ function Home() {
   // Helper function to process AI response
   const processAIResponse = useCallback(async (conversationId: string, userMessage: Message) => {
     try {
-      // Get active prompt
-      const activePrompt = getActivePrompt(store.state)
-      let systemPrompt
-      if (activePrompt) {
-        systemPrompt = {
-          value: activePrompt.content,
-          enabled: true,
-        }
-      }
+      setPendingMessage({
+        id: 'temp-loading',
+        role: 'assistant',
+        content: 'Checking verified Montgomery sources...'
+      })
 
-      // Get AI response
       const response = await genAIResponse({
         data: {
           messages: [...messages, userMessage],
-          systemPrompt,
+          mode: appMode,
+          residentZip: residentZip || undefined,
         },
       })
 
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('No reader found in response')
-      }
-
-      const decoder = new TextDecoder()
-
-      let done = false
-      let newMessage = {
+      const payload = await response.json()
+      const newMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant' as const,
-        content: '',
-      }
-      let buffer = '' // Buffer to accumulate partial JSON chunks
-      let pendingTextQueue: string[] = [] // Queue of text chunks to render
-      let isRendering = false
-
-      // Smooth character-by-character rendering with adaptive speed
-      const renderTextSmoothly = async () => {
-        if (isRendering) return
-        isRendering = true
-
-        while (pendingTextQueue.length > 0) {
-          const chunk = pendingTextQueue.shift()!
-
-          // Adaptive rendering: faster for code blocks, smoother for regular text
-          const isCodeBlock = newMessage.content.includes('```') &&
-                             newMessage.content.split('```').length % 2 === 0
-
-          // Characters per frame and delay based on content type
-          const charsPerFrame = isCodeBlock ? 5 : 2 // Faster for code
-          const delay = isCodeBlock ? 2 : 5 // Shorter delay for code
-
-          for (let i = 0; i < chunk.length; i += charsPerFrame) {
-            const slice = chunk.slice(i, i + charsPerFrame)
-            newMessage = {
-              ...newMessage,
-              content: newMessage.content + slice,
-            }
-            setPendingMessage({ ...newMessage })
-
-            // Dynamic delay for natural typing rhythm
-            // ~200-400 chars per second for text, ~500 chars per second for code
-            await new Promise(resolve => setTimeout(resolve, delay))
-          }
-        }
-
-        isRendering = false
-      }
-
-      const scheduleUIUpdate = (text: string) => {
-        pendingTextQueue.push(text)
-        renderTextSmoothly()
-      }
-
-      while (!done) {
-        const out = await reader.read()
-        done = out.done
-        if (!done && out.value) {
-          // Decode the chunk and add to buffer
-          buffer += decoder.decode(out.value, { stream: true })
-
-          // Split by newlines to get complete JSON objects
-          const lines = buffer.split('\n')
-
-          // Keep the last incomplete line in the buffer
-          buffer = lines.pop() || ''
-
-          // Process each complete line
-          for (const line of lines) {
-            if (line.trim()) {
-              try {
-                const json = JSON.parse(line)
-                if (json.type === 'content_block_delta' && json.delta?.text) {
-                  scheduleUIUpdate(json.delta.text)
-                }
-              } catch (e) {
-                console.error('Error parsing streaming response:', e, 'Line:', line)
-              }
-            }
-          }
-        }
-      }
-
-      // Wait for any remaining text to finish rendering
-      while (pendingTextQueue.length > 0 || isRendering) {
-        await new Promise(resolve => setTimeout(resolve, 50))
+        content: payload.answer || 'I could not produce a verified answer right now.',
+        citations: payload.citations || [],
+        incidentWarning: payload.incidentWarning || undefined,
       }
 
       setPendingMessage(null)
@@ -188,11 +104,11 @@ function Home() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant' as const,
-        content: 'Sorry, I encountered an error generating a response. Please set the required API keys in your environment variables.',
+        content: "I don't have verified information on that yet, but here's the correct next step: contact Montgomery 311 or check official city channels.",
       }
       await addMessage(conversationId, errorMessage)
     }
-  }, [messages, getActivePrompt, addMessage]);
+  }, [messages, appMode, residentZip, addMessage]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()

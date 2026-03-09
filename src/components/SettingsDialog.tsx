@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { PlusCircle, Trash2 } from 'lucide-react'
+import { useMemo } from 'react'
 import { useAppState } from '../store/hooks'
 
 interface SettingsDialogProps {
@@ -8,21 +7,18 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
-  const [promptForm, setPromptForm] = useState({ name: '', content: '' })
-  const [isAddingPrompt, setIsAddingPrompt] = useState(false)
-  const { prompts, createPrompt, deletePrompt, setPromptActive } = useAppState()
+  const { appMode, setAppMode, residentZip, setResidentZip } = useAppState()
 
-  const handleAddPrompt = () => {
-    if (!promptForm.name.trim() || !promptForm.content.trim()) return
-    createPrompt(promptForm.name, promptForm.content)
-    setPromptForm({ name: '', content: '' })
-    setIsAddingPrompt(false)
-  }
+  const profileHelp = useMemo(
+    () =>
+      appMode === 'dispatcher'
+        ? 'Dispatcher mode is optimized for triage, clustering, and closure-message drafting.'
+        : 'Citizen mode is optimized for service finder support and 311 guidance.',
+    [appMode],
+  )
 
   const handleClose = () => {
     onClose()
-    setIsAddingPrompt(false)
-    setPromptForm({ name: '', content: '' })
   }
 
   if (!isOpen) return null
@@ -46,83 +42,54 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
           </div>
           
           <div className="space-y-6">
-            {/* Prompts Management */}
+            {/* Role profile selection */}
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-sm font-medium text-white">
-                  System Prompts
+                  Copilot Profile
                 </label>
-                <button
-                  onClick={() => setIsAddingPrompt(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-red-600 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Add Prompt
-                </button>
               </div>
 
-              {isAddingPrompt && (
-                <div className="p-3 mb-4 space-y-3 rounded-lg bg-gray-700/50">
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-700/50">
                   <input
-                    type="text"
-                    value={promptForm.name}
-                    onChange={(e) => setPromptForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Prompt name..."
-                    className="w-full px-3 py-2 text-sm text-white bg-gray-700 border border-gray-600 rounded-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    type="radio"
+                    name="copilot-mode"
+                    checked={appMode === 'citizen'}
+                    onChange={() => setAppMode('citizen')}
                   />
-                  <textarea
-                    value={promptForm.content}
-                    onChange={(e) => setPromptForm(prev => ({ ...prev, content: e.target.value }))}
-                    placeholder="Enter prompt content..."
-                    className="w-full h-32 px-3 py-2 text-sm text-white bg-gray-700 border border-gray-600 rounded-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                  <div>
+                    <p className="text-sm font-medium text-white">Citizen Service Helper</p>
+                    <p className="text-xs text-gray-400">Resident-facing answers, service finder, and 311 guidance.</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 p-3 rounded-lg bg-gray-700/50">
+                  <input
+                    type="radio"
+                    name="copilot-mode"
+                    checked={appMode === 'dispatcher'}
+                    onChange={() => setAppMode('dispatcher')}
                   />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setIsAddingPrompt(false)}
-                      className="px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white focus:outline-none"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleAddPrompt}
-                      className="px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-red-600 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      Save Prompt
-                    </button>
+                  <div>
+                    <p className="text-sm font-medium text-white">Dispatcher Operations Assistant</p>
+                    <p className="text-xs text-gray-400">Internal triage summaries, clustering, and route suggestions.</p>
                   </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {prompts.map((prompt) => (
-                  <div key={prompt.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-700/50">
-                    <div className="flex-1 min-w-0 mr-4">
-                      <h4 className="text-sm font-medium text-white truncate">{prompt.name}</h4>
-                      <p className="text-xs text-gray-400 truncate">{prompt.content}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="sr-only peer"
-                          checked={prompt.is_active}
-                          onChange={() => setPromptActive(prompt.id, !prompt.is_active)}
-                        />
-                        <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
-                      </label>
-                      <button
-                        onClick={() => deletePrompt(prompt.id)}
-                        className="p-1 text-gray-400 hover:text-red-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                </label>
               </div>
-              <p className="text-xs text-gray-400">
-                Create and manage custom system prompts. Only one prompt can be active at a time.
-              </p>
+
+              <div className="p-3 rounded-lg bg-gray-700/50">
+                <label className="block text-sm font-medium text-white mb-2">Resident ZIP (for local disruption context)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={residentZip}
+                  onChange={(e) => setResidentZip(e.target.value.replace(/[^0-9-]/g, ''))}
+                  placeholder="e.g. 36104"
+                  className="w-full px-3 py-2 text-sm text-white bg-gray-700 border border-gray-600 rounded-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                />
+                <p className="text-xs text-gray-400 mt-2">{profileHelp}</p>
+              </div>
             </div>
 
           </div>
