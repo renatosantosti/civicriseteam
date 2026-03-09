@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as DispatcherRouteImport } from './routes/dispatcher'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
@@ -28,6 +29,11 @@ const SignupRoute = SignupRouteImport.update({
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DispatcherRoute = DispatcherRouteImport.update({
+  id: '/dispatcher',
+  path: '/dispatcher',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -74,6 +80,7 @@ const DashboardAlertsRoute = DashboardAlertsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/dispatcher': typeof DispatcherRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard/alerts': typeof DashboardAlertsRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dispatcher': typeof DispatcherRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard/alerts': typeof DashboardAlertsRoute
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/dispatcher': typeof DispatcherRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard/alerts': typeof DashboardAlertsRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/dispatcher'
     | '/signin'
     | '/signup'
     | '/dashboard/alerts'
@@ -123,6 +133,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/dispatcher'
     | '/signin'
     | '/signup'
     | '/dashboard/alerts'
@@ -135,6 +146,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/dispatcher'
     | '/signin'
     | '/signup'
     | '/dashboard/alerts'
@@ -148,6 +160,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  DispatcherRoute: typeof DispatcherRoute
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
 }
@@ -166,6 +179,13 @@ declare module '@tanstack/react-router' {
       path: '/signin'
       fullPath: '/signin'
       preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dispatcher': {
+      id: '/dispatcher'
+      path: '/dispatcher'
+      fullPath: '/dispatcher'
+      preLoaderRoute: typeof DispatcherRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -252,6 +272,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  DispatcherRoute: DispatcherRoute,
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
 }
