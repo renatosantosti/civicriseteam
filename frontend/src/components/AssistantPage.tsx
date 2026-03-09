@@ -8,6 +8,14 @@ import { TopBanner } from './TopBanner';
 import { useConversations, useAppState, actions } from '../store';
 import { genAIResponse, ChatApiError, type Message } from '../utils';
 
+const RAG_DEBUG = import.meta.env.DEV ?? true;
+
+function ragLog(label: string, data: unknown) {
+  if (RAG_DEBUG) {
+    console.log('[RAG]', label, data);
+  }
+}
+
 export function AssistantPage() {
   const {
     conversations,
@@ -65,21 +73,56 @@ export function AssistantPage() {
           content: 'Checking verified Montgomery sources...',
         });
 
-        const response = await genAIResponse({
-          data: {
-            messages: [...messages, userMessage],
-            mode: appMode,
-            residentZip: residentZip || undefined,
-          },
+        const requestPayload = {
+          messages: [...messages, userMessage],
+          mode: appMode,
+          residentZip: residentZip || undefined,
+        };
+        ragLog('Request', {
+          messages: requestPayload.messages.map((m) => ({
+            role: m.role,
+            contentLength: m.content.length,
+          })),
+          mode: requestPayload.mode,
+          residentZip: requestPayload.residentZip ?? null,
         });
+
+        const response = await genAIResponse({
+          data: requestPayload,
+        });
+
+        ragLog('Response', {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+        });
+        const debugHeader = response.headers.get('X-RAG-Debug');
+        if (debugHeader) {
+          try {
+            ragLog('Server', JSON.parse(debugHeader) as {
+              provider?: string;
+              apiKeySet?: boolean;
+              apiKeyLength?: number;
+              resolvedModel?: string;
+              envModelSet?: boolean;
+            });
+          } catch {
+            // ignore
+          }
+        }
 
         if (!response.ok) {
           const err = await response.json().catch(() => ({ answer: response.statusText })) as { answer?: string; error?: string; detail?: string };
+          ragLog('Response body (error)', { status: response.status, answer: err.answer ?? err.error ?? err.detail });
           const message = err.answer ?? err.error ?? err.detail ?? response.statusText ?? 'Failed to get AI response';
           throw new ChatApiError(message, response.status, err.detail);
         }
 
         const payload = await response.json() as { answer?: string; citations?: Message['citations']; incidentWarning?: Message['incidentWarning'] };
+        ragLog('Success', {
+          answerLength: payload.answer?.length ?? 0,
+          citationsCount: payload.citations?.length ?? 0,
+        });
         const newMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -93,8 +136,13 @@ export function AssistantPage() {
           await addMessage(conversationId, newMessage);
         }
       } catch (err) {
-        console.error('Error in AI response:', err);
         if (err instanceof ChatApiError) {
+          ragLog('Error', { status: err.status, message: err.message, detail: err.detail });
+        } else {
+          ragLog('Error', { message: err instanceof Error ? err.message : String(err) });
+        }
+        console.error('Error in AI response:', err);
+        if (err instanceof ChatApiError && err.status === 503) {
           setBannerVisible(true);
         }
         const displayMessage = err instanceof ChatApiError ? err.message : 'Sorry, I encountered an error generating a response. Please set the required API keys in your environment variables.';
@@ -114,6 +162,10 @@ export function AssistantPage() {
       e.preventDefault();
       if (!input.trim() || isLoading) return;
       const currentInput = input;
+      ragLog('Submit', {
+        inputLength: currentInput.trim().length,
+        conversation: currentConversationId ?? 'new',
+      });
       setInput('');
       setLoading(true);
       setError(null);
@@ -150,8 +202,13 @@ export function AssistantPage() {
       try {
         await processAIResponse(conversationId, userMessage);
       } catch (err) {
-        console.error('Error:', err);
         if (err instanceof ChatApiError) {
+          ragLog('Error', { status: err.status, message: err.message, detail: err.detail });
+        } else {
+          ragLog('Error', { message: err instanceof Error ? err.message : String(err) });
+        }
+        console.error('Error:', err);
+        if (err instanceof ChatApiError && err.status === 503) {
           setBannerVisible(true);
         }
         const displayMessage = err instanceof ChatApiError ? err.message : 'Sorry, I encountered an error processing your request.';

@@ -6,7 +6,8 @@
     "dev": "vite dev --port 3000",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "test:openai-key": "node scripts/test-openai-key.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
@@ -27,6 +28,7 @@
     "highlight.js": "^11.11.1",
     "jose": "^6.2.0",
     "lucide-react": "^0.475.0",
+    "openai": "^4.0.0",
     "postcss": "^8.5.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

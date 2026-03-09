@@ -29,7 +29,7 @@ export function TopBanner() {
       >
         <X className="w-4 h-4" />
       </button>
-      <p className='px-4'>Chat is powered by the backend. Configure <code className="bg-orange-600/80 px-1 rounded">LLM_PROVIDER</code> and <code className="bg-orange-600/80 px-1 rounded">LLM_API_KEY</code> in the backend environment (see backend README).</p>
+      <p className='px-4'>Chat is powered by the frontend (Netlify server function + RAG). Set <code className="bg-orange-600/80 px-1 rounded">RAG_LLM_PROVIDER</code> and <code className="bg-orange-600/80 px-1 rounded">RAG_LLM_API_KEY</code> in the frontend <code className="bg-orange-600/80 px-1 rounded">.env</code> (see frontend .env.example or README).</p>
     </div>
   );
 }
