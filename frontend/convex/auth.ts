@@ -109,3 +109,47 @@ export const signIn = mutation({
     };
   },
 });
+
+export const updateProfile = mutation({
+  args: {
+    authToken: v.string(),
+    name: v.string(),
+    zipCode: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await resolveUserId(args.authToken);
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+    const name = args.name.trim();
+    const zipCode = args.zipCode?.trim() ?? undefined;
+    await ctx.db.patch(userId, { name, zipCode });
+    return {
+      user: {
+        id: user._id,
+        name,
+        email: user.email,
+        zipCode,
+      },
+    };
+  },
+});
+
+export const updatePassword = mutation({
+  args: {
+    authToken: v.string(),
+    currentPassword: v.string(),
+    newPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await resolveUserId(args.authToken);
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+    const valid = bcrypt.compareSync(args.currentPassword, user.passwordHash);
+    if (!valid) throw new Error("Current password is incorrect");
+    if (!args.newPassword || args.newPassword.length < 6) {
+      throw new Error("New password must be at least 6 characters");
+    }
+    const passwordHash = bcrypt.hashSync(args.newPassword, SALT_ROUNDS);
+    await ctx.db.patch(userId, { passwordHash });
+  },
+});

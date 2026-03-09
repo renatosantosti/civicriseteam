@@ -26,6 +26,8 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, zipCode: string) => Promise<void>;
   signOut: () => void;
+  updateProfile: (name: string, zipCode?: string) => Promise<void>;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpMutation = useMutation(api.auth.signUp);
   const signInMutation = useMutation(api.auth.signIn);
+  const updateProfileMutation = useMutation(api.auth.updateProfile);
+  const updatePasswordMutation = useMutation(api.auth.updatePassword);
 
   useEffect(() => {
     const { token: t, user: u } = loadStored();
@@ -105,6 +109,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveStored(null, null);
   }, []);
 
+  const updateProfile = useCallback(
+    async (name: string, zipCode?: string) => {
+      if (!token) throw new Error('Not authenticated');
+      const result = await updateProfileMutation({ authToken: token, name, zipCode });
+      const u: User = {
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
+        zipCode: result.user.zipCode,
+      };
+      setUser(u);
+      saveStored(token, u);
+    },
+    [token, updateProfileMutation]
+  );
+
+  const updatePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!token) throw new Error('Not authenticated');
+      await updatePasswordMutation({
+        authToken: token,
+        currentPassword,
+        newPassword,
+      });
+    },
+    [token, updatePasswordMutation]
+  );
+
   const value: AuthContextValue = {
     user,
     token,
@@ -112,6 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signUp,
     signOut,
+    updateProfile,
+    updatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
