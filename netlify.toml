@@ -1,6 +1,6 @@
-# Monorepo: configure "Base directory" = "frontend" nas configurações do site na Netlify
+# Monorepo: base do build definido abaixo (frontend)
 [build]
-  base = "."
+  base = "frontend"
   command = "npm run build"
   publish = "dist/client"
 
