@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
 
 
+class CurrentUser(BaseModel):
+    """Authenticated user from JWT (Convex auth)."""
+
+    user_id: str
+    email: str | None = None
+
+
 class Message(BaseModel):
     id: str = ""
     role: str = Field(..., pattern="^(user|assistant)$")

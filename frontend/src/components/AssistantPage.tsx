@@ -1,6 +1,4 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Settings } from 'lucide-react';
-import { SettingsDialog } from './SettingsDialog';
 import { ChatMessage } from './ChatMessage';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ChatInput } from './ChatInput';
@@ -8,9 +6,11 @@ import { Sidebar } from './Sidebar';
 import { WelcomeScreen } from './WelcomeScreen';
 import { TopBanner } from './TopBanner';
 import { useConversations, useAppState, store, actions } from '../store';
-import { genAIResponse, type Message } from '../utils';
+import { genAIResponse, ChatApiError, type Message } from '../utils';
+import { useAuth } from '../contexts/AuthContext';
 
 export function AssistantPage() {
+  const { token } = useAuth();
   const {
     conversations,
     currentConversationId,
@@ -22,14 +22,13 @@ export function AssistantPage() {
     addMessage,
   } = useConversations();
 
-  const { isLoading, setLoading, getActivePrompt } = useAppState();
+  const { isLoading, setLoading, setBannerVisible } = useAppState();
 
   const messages = useMemo(() => currentConversation?.messages || [], [currentConversation]);
 
   const [input, setInput] = useState('');
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,13 +61,9 @@ export function AssistantPage() {
   const processAIResponse = useCallback(
     async (conversationId: string, userMessage: Message) => {
       try {
-        const activePrompt = getActivePrompt(store.state);
-        let systemPrompt;
-        if (activePrompt) {
-          systemPrompt = { value: activePrompt.content, enabled: true };
-        }
         const response = await genAIResponse({
-          data: { messages: [...messages, userMessage], systemPrompt },
+          data: { messages: [...messages, userMessage] },
+          authToken: token ?? undefined,
         });
         const reader = response.body?.getReader();
         if (!reader) throw new Error('No reader found in response');
@@ -135,16 +130,19 @@ export function AssistantPage() {
         }
       } catch (err) {
         console.error('Error in AI response:', err);
+        if (err instanceof ChatApiError) {
+          setBannerVisible(true);
+        }
+        const displayMessage = err instanceof ChatApiError ? err.message : 'Sorry, I encountered an error generating a response. Please set the required API keys in your environment variables.';
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant' as const,
-          content:
-            'Sorry, I encountered an error generating a response. Please set the required API keys in your environment variables.',
+          content: displayMessage,
         };
         await addMessage(conversationId, errorMessage);
       }
     },
-    [messages, getActivePrompt, addMessage]
+    [messages, addMessage, token, setBannerVisible]
   );
 
   const handleSubmit = useCallback(
@@ -189,10 +187,14 @@ export function AssistantPage() {
         await processAIResponse(conversationId, userMessage);
       } catch (err) {
         console.error('Error:', err);
+        if (err instanceof ChatApiError) {
+          setBannerVisible(true);
+        }
+        const displayMessage = err instanceof ChatApiError ? err.message : 'Sorry, I encountered an error processing your request.';
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant' as const,
-          content: 'Sorry, I encountered an error processing your request.',
+          content: displayMessage,
         };
         if (currentConversationId) {
           await addMessage(currentConversationId, errorMessage);
@@ -212,6 +214,7 @@ export function AssistantPage() {
       addMessage,
       processAIResponse,
       setLoading,
+      setBannerVisible,
     ]
   );
 
@@ -228,14 +231,6 @@ export function AssistantPage() {
 
   return (
     <div className="relative flex h-screen bg-gray-900">
-      <div className="absolute right-5 top-5 z-50">
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-orange-500 to-red-600 text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-orange-500"
-        >
-          <Settings className="h-5 w-5" />
-        </button>
-      </div>
       <Sidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -288,7 +283,6 @@ export function AssistantPage() {
           />
         )}
       </div>
-      <SettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }

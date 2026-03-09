@@ -1,22 +1,35 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { resolveUserId } from "./auth";
 
-// Get all conversations
+// List conversations for the authenticated user
 export const list = query({
-  handler: async (ctx) => {
-    return await ctx.db.query("conversations").collect();
-  },
-});
-
-// Get a specific conversation
-export const get = query({
-  args: { id: v.id("conversations") },
+  args: { authToken: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const userId = await resolveUserId(args.authToken);
+    return await ctx.db
+      .query("conversations")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
   },
 });
 
-// Create a new conversation
+// Get a specific conversation (only if owned by the user)
+export const get = query({
+  args: {
+    id: v.id("conversations"),
+    authToken: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await resolveUserId(args.authToken);
+    const conversation = await ctx.db.get(args.id);
+    if (!conversation) return null;
+    if (conversation.userId !== userId) return null;
+    return conversation;
+  },
+});
+
+// Create a new conversation for the authenticated user
 export const create = mutation({
   args: {
     title: v.string(),
@@ -29,27 +42,35 @@ export const create = mutation({
         })
       )
     ),
+    authToken: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await resolveUserId(args.authToken);
     return await ctx.db.insert("conversations", {
       title: args.title,
       messages: args.messages || [],
+      userId,
     });
   },
 });
 
-// Update conversation title
+// Update conversation title (only if owned by the user)
 export const updateTitle = mutation({
   args: {
     id: v.id("conversations"),
     title: v.string(),
+    authToken: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.patch(args.id, { title: args.title });
+    const userId = await resolveUserId(args.authToken);
+    const conversation = await ctx.db.get(args.id);
+    if (!conversation) throw new Error("Conversation not found");
+    if (conversation.userId !== userId) throw new Error("Not authorized");
+    await ctx.db.patch(args.id, { title: args.title });
   },
 });
 
-// Add a message to a conversation
+// Add a message to a conversation (only if owned by the user)
 export const addMessage = mutation({
   args: {
     conversationId: v.id("conversations"),
@@ -58,24 +79,29 @@ export const addMessage = mutation({
       role: v.union(v.literal("user"), v.literal("assistant")),
       content: v.string(),
     }),
+    authToken: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await resolveUserId(args.authToken);
     const conversation = await ctx.db.get(args.conversationId);
-    if (!conversation) {
-      throw new Error("Conversation not found");
-    }
-    
+    if (!conversation) throw new Error("Conversation not found");
+    if (conversation.userId !== userId) throw new Error("Not authorized");
     const updatedMessages = [...conversation.messages, args.message];
-    return await ctx.db.patch(args.conversationId, { 
-      messages: updatedMessages 
-    });
+    await ctx.db.patch(args.conversationId, { messages: updatedMessages });
   },
 });
 
-// Delete a conversation
+// Delete a conversation (only if owned by the user)
 export const remove = mutation({
-  args: { id: v.id("conversations") },
+  args: {
+    id: v.id("conversations"),
+    authToken: v.string(),
+  },
   handler: async (ctx, args) => {
+    const userId = await resolveUserId(args.authToken);
+    const conversation = await ctx.db.get(args.id);
+    if (!conversation) throw new Error("Conversation not found");
+    if (conversation.userId !== userId) throw new Error("Not authorized");
     await ctx.db.delete(args.id);
   },
 });

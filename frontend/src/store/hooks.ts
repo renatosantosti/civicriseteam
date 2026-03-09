@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import type { Message } from '../utils/ai';
 import { useEffect } from 'react';
+import { useOptionalAuth } from '../contexts/AuthContext';
 
 // Check if Convex URL is provided
 const isConvexAvailable = Boolean(import.meta.env.VITE_CONVEX_URL);
@@ -45,34 +46,43 @@ export function useAppState() {
 
 // Hook for Convex integration with fallback to local state
 export function useConversations() {
+  const auth = useOptionalAuth();
+  const token = auth?.token ?? null;
+
   // Local state for UI reactivity
   const conversations = useStore(store, s => selectors.getConversations(s));
   const currentConversationId = useStore(store, s => selectors.getCurrentConversationId(s));
   const currentConversation = useStore(store, s => selectors.getCurrentConversation(s));
-  
-  // Only use Convex if it's available
-  const convexConversations = isConvexAvailable 
-    ? useQuery(api.conversations.list) || []
-    : null;
-  
-  // Convex mutations (only if Convex is available)
+
+  // Query Convex when available; skip when no token so we don't require auth for the query call
+  const convexListResult = isConvexAvailable
+    ? useQuery(api.conversations.list, token ? { authToken: token } : 'skip')
+    : undefined;
+  const convexConversations = convexListResult ?? null;
+
+  // Convex mutations (only when Convex available; authToken passed at call time)
   const createConversation = isConvexAvailable ? useMutation(api.conversations.create) : null;
   const updateTitle = isConvexAvailable ? useMutation(api.conversations.updateTitle) : null;
   const deleteConversation = isConvexAvailable ? useMutation(api.conversations.remove) : null;
   const addMessageToConversation = isConvexAvailable ? useMutation(api.conversations.addMessage) : null;
-  
-  // Convert Convex conversations to local format if available
+
+  // Sync Convex conversations to local store, or clear when no token
   useEffect(() => {
-    if (isConvexAvailable && convexConversations && convexConversations.length > 0) {
+    if (!isConvexAvailable || !token) {
+      actions.setConversations([]);
+      return;
+    }
+    if (convexConversations && convexConversations.length > 0) {
       const formattedConversations: Conversation[] = convexConversations.map(conv => ({
         id: conv._id,
         title: conv.title,
         messages: conv.messages as Message[],
       }));
-      
       actions.setConversations(formattedConversations);
+    } else if (convexConversations && convexConversations.length === 0) {
+      actions.setConversations([]);
     }
-  }, [convexConversations]);
+  }, [convexConversations, token, isConvexAvailable]);
   
   return {
     conversations,
@@ -94,18 +104,16 @@ export function useConversations() {
       // First update local state for immediate UI feedback
       actions.addConversation(newConversation);
       
-      // Then create in Convex database if available
-      if (isConvexAvailable && createConversation) {
+      // Then create in Convex database if available and authenticated
+      if (isConvexAvailable && createConversation && token) {
         try {
           const convexId = await createConversation({
             title,
             messages: [],
+            authToken: token,
           });
-          
-          // Update the local conversation with the Convex ID
           actions.updateConversationId(id, convexId);
           actions.setCurrentConversationId(convexId);
-          
           return convexId;
         } catch (error) {
           console.error('Failed to create conversation in Convex:', error);
@@ -121,10 +129,10 @@ export function useConversations() {
       // First update local state
       actions.updateConversationTitle(id, title);
       
-      // Then update in Convex if available
-      if (isConvexAvailable && updateTitle) {
+      // Then update in Convex if available and authenticated
+      if (isConvexAvailable && updateTitle && token) {
         try {
-          await updateTitle({ id: id as Id<'conversations'>, title });
+          await updateTitle({ id: id as Id<'conversations'>, title, authToken: token });
         } catch (error) {
           console.error('Failed to update conversation title in Convex:', error);
         }
@@ -135,10 +143,10 @@ export function useConversations() {
       // First update local state
       actions.deleteConversation(id);
       
-      // Then delete from Convex if available
-      if (isConvexAvailable && deleteConversation) {
+      // Then delete from Convex if available and authenticated
+      if (isConvexAvailable && deleteConversation && token) {
         try {
-          await deleteConversation({ id: id as Id<'conversations'> });
+          await deleteConversation({ id: id as Id<'conversations'>, authToken: token });
         } catch (error) {
           console.error('Failed to delete conversation from Convex:', error);
         }
@@ -149,12 +157,13 @@ export function useConversations() {
       // First update local state
       actions.addMessage(conversationId, message);
       
-      // Then add to Convex if available
-      if (isConvexAvailable && addMessageToConversation) {
+      // Then add to Convex if available and authenticated
+      if (isConvexAvailable && addMessageToConversation && token) {
         try {
           await addMessageToConversation({
             conversationId: conversationId as Id<'conversations'>,
             message,
+            authToken: token,
           });
         } catch (error) {
           console.error('Failed to add message to Convex:', error);

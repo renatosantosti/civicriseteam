@@ -6,9 +6,10 @@ Este diretório contém o backend Convex usado pelo frontend para **persistir co
 
 ## O que o Convex faz neste projeto
 
-- **Persistência de conversas**: lista de conversas, títulos e mensagens (user/assistant) são armazenados na nuvem Convex.
+- **Autenticação**: tabela `users` (email, name, zipCode, passwordHash) e funções `auth.signUp` / `auth.signIn` que emitem JWT. O mesmo `JWT_SECRET` deve estar configurado no Convex e no backend FastAPI.
+- **Persistência de conversas**: conversas vinculadas ao usuário (`userId`); list, create, updateTitle, addMessage, remove exigem token e filtram por usuário.
 - **Sincronização em tempo real**: quando Convex está ativo, a lista de conversas e as mensagens são refletidas na UI via `useQuery` / mutations.
-- **Fallback sem Convex**: se `VITE_CONVEX_URL` não estiver definida ou for inválida, o app roda só com estado local (memória); o chat com a LLM continua funcionando, mas as conversas não são persistidas.
+- **Fallback sem Convex**: se `VITE_CONVEX_URL` não estiver definida ou for inválida, o app roda só com estado local (memória); o chat com a LLM continua funcionando, mas as conversas não são persistidas e o login real não estará disponível.
 
 Fluxo resumido:
 
@@ -21,8 +22,9 @@ Fluxo resumido:
 
 | Arquivo / pasta      | Descrição |
 |----------------------|-----------|
-| `schema.ts`          | Schema do banco: tabela `conversations` (title, messages). |
-| `conversations.ts`   | Funções Convex: `list`, `get`, `create`, `updateTitle`, `addMessage`, `remove`. |
+| `schema.ts`          | Schema: tabelas `users` (email, name, zipCode, passwordHash) e `conversations` (title, messages, userId). |
+| `auth.ts`            | Auth: `signUp`, `signIn`, helper `resolveUserId` (JWT). |
+| `conversations.ts`   | Funções Convex: `list`, `get`, `create`, `updateTitle`, `addMessage`, `remove` (todas exigem `authToken`). |
 | `_generated/`        | Código gerado pelo Convex (api, dataModel, server). Não editar. |
 | `convex.json`        | Config do projeto/team (preenchido ao rodar `npx convex dev` ou pelo dashboard). |
 | `tsconfig.json`      | TypeScript para as funções Convex. |
@@ -55,14 +57,20 @@ VITE_CONVEX_URL=https://seu-deployment.convex.cloud
 - **Sem barra no final**: evita URL de WebSocket com `//api` (ex.: `wss://....convex.cloud//api/...`), que pode causar falha de conexão.
 - Se **não** definir `VITE_CONVEX_URL` (ou deixar vazio), o app ignora Convex e usa só estado local.
 
-### 2. Criar um projeto no Convex (primeira vez)
+### 2. JWT_SECRET no Convex (auth)
+
+Para login e para o backend reconhecer o usuário, configure no **Convex Dashboard** (ou via `npx convex env set JWT_SECRET 'sua-chave-secreta'`):
+
+- **JWT_SECRET** – Chave usada para assinar os JWTs no `auth.signIn`. Use o **mesmo valor** em `JWT_SECRET` no `.env` do backend; caso contrário o FastAPI rejeitará o token.
+
+### 3. Criar um projeto no Convex (primeira vez)
 
 1. Acesse [convex.dev](https://convex.dev) e crie conta / login.
 2. Crie um novo projeto (ex.: “civic_rise”).
 3. No dashboard, em **Settings** ou **Health**, copie a **Cloud URL** (ex.: `https://xxxx.convex.cloud`).
 4. Coloque essa URL em `VITE_CONVEX_URL` no `.env` do frontend (sem barra final).
 
-### 3. Vincular este código ao projeto Convex (CLI)
+### 4. Vincular este código ao projeto Convex (CLI)
 
 Na raiz do **frontend** (onde está o `package.json` e a pasta `convex/`):
 
