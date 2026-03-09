@@ -12,4 +12,4 @@ export function getRouter() {
     scrollRestoration: true,
   })
   return router
-}
+};

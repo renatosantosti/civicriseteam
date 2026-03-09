@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { resolveUserId } from "./auth";
 
-// List conversations for the authenticated user
+// List conversations for the authenticated user - conversation history
 export const list = query({
   args: { authToken: v.string() },
   handler: async (ctx, args) => {
