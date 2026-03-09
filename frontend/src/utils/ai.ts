@@ -39,6 +39,9 @@ export async function genAIResponse(params: {
   if (params.authToken) {
     headers['Authorization'] = `Bearer ${params.authToken}`
   }
+  if (base.includes('ngrok')) {
+    headers['ngrok-skip-browser-warning'] = 'true'
+  }
   const res = await fetch(`${base}/api/chat/stream`, {
     method: 'POST',
     headers,
