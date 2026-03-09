@@ -1,6 +1,4 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Settings } from 'lucide-react';
-import { SettingsDialog } from './SettingsDialog';
 import { ChatMessage } from './ChatMessage';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ChatInput } from './ChatInput';
@@ -24,14 +22,13 @@ export function AssistantPage() {
     addMessage,
   } = useConversations();
 
-  const { isLoading, setLoading, getActivePrompt, setBannerVisible } = useAppState();
+  const { isLoading, setLoading, setBannerVisible } = useAppState();
 
   const messages = useMemo(() => currentConversation?.messages || [], [currentConversation]);
 
   const [input, setInput] = useState('');
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +61,8 @@ export function AssistantPage() {
   const processAIResponse = useCallback(
     async (conversationId: string, userMessage: Message) => {
       try {
-        const activePrompt = getActivePrompt(store.state);
-        let systemPrompt;
-        if (activePrompt) {
-          systemPrompt = { value: activePrompt.content, enabled: true };
-        }
         const response = await genAIResponse({
-          data: { messages: [...messages, userMessage], systemPrompt },
+          data: { messages: [...messages, userMessage] },
           authToken: token ?? undefined,
         });
         const reader = response.body?.getReader();
@@ -150,7 +142,7 @@ export function AssistantPage() {
         await addMessage(conversationId, errorMessage);
       }
     },
-    [messages, getActivePrompt, addMessage, token, setBannerVisible]
+    [messages, addMessage, token, setBannerVisible]
   );
 
   const handleSubmit = useCallback(
@@ -239,14 +231,6 @@ export function AssistantPage() {
 
   return (
     <div className="relative flex h-screen bg-gray-900">
-      <div className="absolute right-5 top-5 z-50">
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-orange-500 to-red-600 text-white transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-orange-500"
-        >
-          <Settings className="h-5 w-5" />
-        </button>
-      </div>
       <Sidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -299,7 +283,6 @@ export function AssistantPage() {
           />
         )}
       </div>
-      <SettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }
