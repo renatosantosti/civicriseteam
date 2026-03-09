@@ -22,6 +22,7 @@
     "@tanstack/store": "^0.9.1",
     "@types/uuid": "^10.0.0",
     "bcryptjs": "^3.0.3",
+    "@netlify/blobs": "^10.7.0",
     "convex": "^1.20.0",
     "highlight.js": "^11.11.1",
     "jose": "^6.2.0",

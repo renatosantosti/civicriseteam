@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as RagAdminRouteImport } from './routes/rag-admin'
 import { Route as DispatcherRouteImport } from './routes/dispatcher'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,11 @@ const SignupRoute = SignupRouteImport.update({
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RagAdminRoute = RagAdminRouteImport.update({
+  id: '/rag-admin',
+  path: '/rag-admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DispatcherRoute = DispatcherRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/dispatcher': typeof DispatcherRoute
+  '/rag-admin': typeof RagAdminRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard/alerts': typeof DashboardAlertsRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dispatcher': typeof DispatcherRoute
+  '/rag-admin': typeof RagAdminRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard/alerts': typeof DashboardAlertsRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
   '/dispatcher': typeof DispatcherRoute
+  '/rag-admin': typeof RagAdminRoute
   '/signin': typeof SigninRoute
   '/signup': typeof SignupRoute
   '/dashboard/alerts': typeof DashboardAlertsRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/dispatcher'
+    | '/rag-admin'
     | '/signin'
     | '/signup'
     | '/dashboard/alerts'
@@ -134,6 +144,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dispatcher'
+    | '/rag-admin'
     | '/signin'
     | '/signup'
     | '/dashboard/alerts'
@@ -147,6 +158,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/dispatcher'
+    | '/rag-admin'
     | '/signin'
     | '/signup'
     | '/dashboard/alerts'
@@ -161,6 +173,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
   DispatcherRoute: typeof DispatcherRoute
+  RagAdminRoute: typeof RagAdminRoute
   SigninRoute: typeof SigninRoute
   SignupRoute: typeof SignupRoute
 }
@@ -179,6 +192,13 @@ declare module '@tanstack/react-router' {
       path: '/signin'
       fullPath: '/signin'
       preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rag-admin': {
+      id: '/rag-admin'
+      path: '/rag-admin'
+      fullPath: '/rag-admin'
+      preLoaderRoute: typeof RagAdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dispatcher': {
@@ -273,18 +293,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
   DispatcherRoute: DispatcherRoute,
+  RagAdminRoute: RagAdminRoute,
   SigninRoute: SigninRoute,
   SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

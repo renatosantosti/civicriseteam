@@ -5,12 +5,10 @@ import { ChatInput } from './ChatInput';
 import { Sidebar } from './Sidebar';
 import { WelcomeScreen } from './WelcomeScreen';
 import { TopBanner } from './TopBanner';
-import { useConversations, useAppState, store, actions } from '../store';
+import { useConversations, useAppState, actions } from '../store';
 import { genAIResponse, ChatApiError, type Message } from '../utils';
-import { useAuth } from '../contexts/AuthContext';
 
 export function AssistantPage() {
-  const { token } = useAuth();
   const {
     conversations,
     currentConversationId,
@@ -22,7 +20,7 @@ export function AssistantPage() {
     addMessage,
   } = useConversations();
 
-  const { isLoading, setLoading, setBannerVisible } = useAppState();
+  const { isLoading, setLoading, setBannerVisible, appMode, residentZip } = useAppState();
 
   const messages = useMemo(() => currentConversation?.messages || [], [currentConversation]);
 
@@ -61,69 +59,35 @@ export function AssistantPage() {
   const processAIResponse = useCallback(
     async (conversationId: string, userMessage: Message) => {
       try {
-        const response = await genAIResponse({
-          data: { messages: [...messages, userMessage] },
-          authToken: token ?? undefined,
+        setPendingMessage({
+          id: 'temp-loading',
+          role: 'assistant',
+          content: 'Checking verified Montgomery sources...',
         });
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('No reader found in response');
-        const decoder = new TextDecoder();
-        let done = false;
-        let newMessage = {
+
+        const response = await genAIResponse({
+          data: {
+            messages: [...messages, userMessage],
+            mode: appMode,
+            residentZip: residentZip || undefined,
+          },
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ answer: response.statusText })) as { answer?: string; error?: string; detail?: string };
+          const message = err.answer ?? err.error ?? err.detail ?? response.statusText ?? 'Failed to get AI response';
+          throw new ChatApiError(message, response.status, err.detail);
+        }
+
+        const payload = await response.json() as { answer?: string; citations?: Message['citations']; incidentWarning?: Message['incidentWarning'] };
+        const newMessage: Message = {
           id: (Date.now() + 1).toString(),
-          role: 'assistant' as const,
-          content: '',
+          role: 'assistant',
+          content: payload.answer ?? 'I could not produce a verified answer right now.',
+          citations: payload.citations ?? [],
+          incidentWarning: payload.incidentWarning,
         };
-        let buffer = '';
-        let pendingTextQueue: string[] = [];
-        let isRendering = false;
-        const renderTextSmoothly = async () => {
-          if (isRendering) return;
-          isRendering = true;
-          while (pendingTextQueue.length > 0) {
-            const chunk = pendingTextQueue.shift()!;
-            const isCodeBlock =
-              newMessage.content.includes('```') &&
-              newMessage.content.split('```').length % 2 === 0;
-            const charsPerFrame = isCodeBlock ? 5 : 2;
-            const delay = isCodeBlock ? 2 : 5;
-            for (let i = 0; i < chunk.length; i += charsPerFrame) {
-              const slice = chunk.slice(i, i + charsPerFrame);
-              newMessage = { ...newMessage, content: newMessage.content + slice };
-              setPendingMessage({ ...newMessage });
-              await new Promise((resolve) => setTimeout(resolve, delay));
-            }
-          }
-          isRendering = false;
-        };
-        const scheduleUIUpdate = (text: string) => {
-          pendingTextQueue.push(text);
-          renderTextSmoothly();
-        };
-        while (!done) {
-          const out = await reader.read();
-          done = out.done;
-          if (!done && out.value) {
-            buffer += decoder.decode(out.value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-              if (line.trim()) {
-                try {
-                  const json = JSON.parse(line);
-                  if (json.type === 'content_block_delta' && json.delta?.text) {
-                    scheduleUIUpdate(json.delta.text);
-                  }
-                } catch (e) {
-                  console.error('Error parsing streaming response:', e, 'Line:', line);
-                }
-              }
-            }
-          }
-        }
-        while (pendingTextQueue.length > 0 || isRendering) {
-          await new Promise((resolve) => setTimeout(resolve, 50));
-        }
+
         setPendingMessage(null);
         if (newMessage.content.trim()) {
           await addMessage(conversationId, newMessage);
@@ -136,13 +100,13 @@ export function AssistantPage() {
         const displayMessage = err instanceof ChatApiError ? err.message : 'Sorry, I encountered an error generating a response. Please set the required API keys in your environment variables.';
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
-          role: 'assistant' as const,
+          role: 'assistant',
           content: displayMessage,
         };
         await addMessage(conversationId, errorMessage);
       }
     },
-    [messages, addMessage, token, setBannerVisible]
+    [messages, addMessage, appMode, residentZip, setBannerVisible]
   );
 
   const handleSubmit = useCallback(

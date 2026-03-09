@@ -3,6 +3,7 @@ import {
   Outlet,
   HeadContent,
   Scripts,
+  Link,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { ConvexClientProvider } from '../convex'
@@ -38,7 +39,26 @@ export const Route = createRootRoute({
       <TanStackRouterDevtools />
     </RootDocument>
   ),
+
+  notFoundComponent: () => (
+    <RootDocument>
+      <NotFound />
+      <TanStackRouterDevtools />
+    </RootDocument>
+  ),
 })
+
+function NotFound() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Page not found</h1>
+      <p className="text-gray-600 dark:text-gray-400">The page you’re looking for doesn’t exist.</p>
+      <Link to="/" className="text-civic-orange hover:underline font-medium">
+        Back to home
+      </Link>
+    </div>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

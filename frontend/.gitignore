@@ -1,4 +1,7 @@
 # Local Netlify folder
 .netlify
 
+# Vite cache (avoids EPERM on Windows when outside node_modules)
+.vite
+
 .env.local

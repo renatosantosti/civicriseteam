@@ -78,6 +78,21 @@ export const addMessage = mutation({
       id: v.string(),
       role: v.union(v.literal("user"), v.literal("assistant")),
       content: v.string(),
+      citations: v.optional(
+        v.array(
+          v.object({
+            sourceName: v.string(),
+            note: v.optional(v.string()),
+          })
+        )
+      ),
+      incidentWarning: v.optional(
+        v.object({
+          title: v.string(),
+          area: v.string(),
+          summary: v.string(),
+        })
+      ),
     }),
     authToken: v.string(),
   },
