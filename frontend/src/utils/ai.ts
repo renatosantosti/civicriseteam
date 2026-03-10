@@ -45,9 +45,15 @@ interface AIResponsePayload {
   incidentWarning?: IncidentWarning
 }
 
+const OFF_TOPIC_REFUSAL =
+  "I'm the Montgomery Civic Copilot. I can only help with Montgomery city services, 311, reporting issues, and neighborhood information. For other questions, please use a general assistant or search engine."
+
 const BASE_GUARDRAILS = `You are Montgomery Civic Copilot.
 
-Rules:
+Scope (highest priority): You must only answer questions about: Montgomery city services, 311 and reporting issues, neighborhood alerts, city policies, Snap & Submit, and (in dispatcher mode) triage/summary of incidents. If the user's question is NOT on these topics (e.g. math, general knowledge, other cities, jokes, entertainment), you must NOT answer the question. Instead respond ONLY with this exact JSON (no other text):
+{"answer": "I'm the Montgomery Civic Copilot. I can only help with Montgomery city services, 311, reporting issues, and neighborhood information. For other questions, please use a general assistant or search engine.", "citations": [], "incidentWarning": null, "offTopic": true}
+
+Rules for on-topic questions:
 - Stay factual and grounded in verified data only.
 - Never fabricate city schedules, incidents, ticket statuses, or policies.
 - If verified information is missing, say: "I don't have verified information on that yet, but here's the correct next step."
@@ -59,8 +65,10 @@ Output strictly as JSON with this exact shape:
 {
   "answer": "string",
   "citations": [{ "sourceName": "string", "note": "optional string" }],
-  "incidentWarning": { "title": "string", "area": "string", "summary": "string" } | null
+  "incidentWarning": { "title": "string", "area": "string", "summary": "string" } | null,
+  "offTopic": true
 }
+(Include "offTopic": true only when refusing an off-topic question; omit it for normal answers.)
 
 Use an empty array for citations when no verified source is available.
 Use null for incidentWarning when there is no verified active disruption.`
@@ -156,17 +164,67 @@ async function loadRagEnvFromFiles(): Promise<Record<string, string>> {
   return { ...fromEnv, ...fromEnvLocal }
 }
 
+function isRefusalMessage(answer: string | undefined): boolean {
+  if (!answer || !answer.trim()) return false
+  const t = answer.trim()
+  return t === OFF_TOPIC_REFUSAL || t.includes('I can only help with Montgomery')
+}
+
+const SCOPE_CLASSIFIER_SYSTEM = `You classify the user message. Allowed topics: Montgomery city services, 311, reporting issues, neighborhood alerts, city policies, Snap & Submit, dispatcher triage. Reply with exactly one line: ON_TOPIC or OFF_TOPIC.`
+
+async function runScopeClassification(
+  provider: string,
+  apiKey: string,
+  resolvedModel: string,
+  userQuery: string
+): Promise<boolean> {
+  try {
+    if (provider === 'openai') {
+      const openai = new OpenAI({ apiKey, timeout: 10000, baseURL: 'https://api.openai.com/v1' })
+      const completion = await openai.chat.completions.create({
+        model: resolvedModel,
+        messages: [
+          { role: 'system', content: SCOPE_CLASSIFIER_SYSTEM },
+          { role: 'user', content: userQuery },
+        ],
+        max_tokens: 20,
+      })
+      const text = (completion.choices[0]?.message?.content ?? '').trim().toUpperCase()
+      return !text.includes('OFF_TOPIC')
+    } else {
+      const anthropic = new Anthropic({ apiKey, timeout: 10000 })
+      const completion = await anthropic.messages.create({
+        model: resolvedModel,
+        max_tokens: 20,
+        system: SCOPE_CLASSIFIER_SYSTEM,
+        messages: [{ role: 'user', content: userQuery }],
+      })
+      const text = completion.content
+        .filter((block) => block.type === 'text')
+        .map((block) => ('text' in block ? block.text : ''))
+        .join('\n')
+        .trim()
+        .toUpperCase()
+      return !text.includes('OFF_TOPIC')
+    }
+  } catch (err) {
+    console.warn('[RAG] Scope classification failed, proceeding with main call', err)
+    return true
+  }
+}
+
 function parseAIResponse(text: string): AIResponsePayload {
   const normalized = text.trim()
   const blockMatch = normalized.match(/```json\s*([\s\S]*?)```/i)
   const candidate = blockMatch?.[1] ?? normalized
 
   try {
-    const parsed = JSON.parse(candidate) as AIResponsePayload
+    const parsed = JSON.parse(candidate) as AIResponsePayload & { offTopic?: boolean }
+    const isRefusal = parsed.offTopic === true || isRefusalMessage(parsed.answer)
     return {
-      answer: parsed.answer?.trim() || 'I could not produce a verified answer right now.',
-      citations: Array.isArray(parsed.citations) ? parsed.citations : [],
-      incidentWarning: parsed.incidentWarning ?? undefined,
+      answer: isRefusal ? OFF_TOPIC_REFUSAL : (parsed.answer?.trim() || 'I could not produce a verified answer right now.'),
+      citations: isRefusal ? [] : (Array.isArray(parsed.citations) ? parsed.citations : []),
+      incidentWarning: isRefusal ? undefined : (parsed.incidentWarning ?? undefined),
     }
   } catch {
     return {
@@ -284,6 +342,33 @@ export const genAIResponse = createServerFn({ method: 'GET', response: 'raw' } a
     }
 
     const userQuery = formattedMessages[formattedMessages.length - 1]?.content || ''
+    const scopeGuard = (fileEnv.RAG_SCOPE_GUARD ?? process.env.RAG_SCOPE_GUARD)?.trim().toLowerCase()
+    if (scopeGuard === 'strict' && apiKey) {
+      const onTopic = await runScopeClassification(provider, apiKey, resolvedModel, userQuery)
+      if (!onTopic) {
+        console.log('[RAG] Scope guard: OFF_TOPIC, returning refusal')
+        return new Response(
+          JSON.stringify({
+            answer: OFF_TOPIC_REFUSAL,
+            citations: [],
+            incidentWarning: null,
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              ...getRagDebugHeaders({
+                provider,
+                apiKeySet: true,
+                apiKeyLength,
+                resolvedModel,
+                envModelSet,
+              }),
+            },
+          }
+        )
+      }
+    }
     const retrievedContext = await retrieveFromRag({
       query: userQuery,
       mode: data.mode,
