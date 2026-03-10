@@ -15,10 +15,10 @@ export const WelcomeScreen = ({
 }: WelcomeScreenProps) => (
   <div className="flex items-center justify-center flex-1 px-4">
     <div className="w-full max-w-3xl mx-auto text-center">
-      <h1 className="mb-4 text-6xl font-bold text-transparent uppercase bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text">
+      <h1 className="mb-4 text-4xl font-bold text-transparent uppercase bg-gradient-to-r from-orange-500 to-red-600 bg-clip-text sm:text-5xl lg:text-6xl">
         <span className="text-white">Montgomery</span> Civic Copilot
       </h1>
-      <p className="w-2/3 mx-auto mb-6 text-lg text-gray-400">
+      <p className="w-full mx-auto mb-6 text-lg text-gray-400 sm:w-2/3 max-w-2xl">
         Find city services, report issues, and get verified updates about disruptions near you. Switch between resident and dispatcher profiles in Settings.
       </p>
       <form onSubmit={handleSubmit}>

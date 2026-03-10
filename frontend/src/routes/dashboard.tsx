@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { AppSidebar } from '../components/AppSidebar';
 import { TopNavBar } from '../components/TopNavBar';
@@ -7,6 +7,9 @@ import { useOptionalAuth } from '../contexts/AuthContext';
 function DashboardLayout() {
   const auth = useOptionalAuth();
   const navigate = useNavigate();
+  const routerState = useRouterState();
+  const pathname = routerState.location.pathname;
+  const isAssistant = pathname === '/dashboard/assistant';
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -47,8 +50,8 @@ function DashboardLayout() {
       {/* Main area */}
       <div className="flex flex-1 flex-col min-w-0">
         <TopNavBar onMenuClick={() => setSidebarOpen(true)} />
-        <div className="flex flex-1">
-          <main className="flex-1 p-4 lg:p-6">
+        <div className="flex flex-1 min-h-0">
+          <main className={`flex-1 min-h-0 ${isAssistant ? 'p-0 overflow-hidden' : 'p-4 lg:p-6'}`}>
             <Outlet />
           </main>
         </div>

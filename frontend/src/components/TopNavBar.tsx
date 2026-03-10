@@ -46,7 +46,7 @@ export function TopNavBar({ onMenuClick }: TopNavBarProps) {
         <span className="text-gray-300">RISE</span>
       </Link>
       </div>
-      <div className="flex flex-1 items-center justify-center px-4">
+      <div className="hidden flex-1 items-center justify-center px-2 sm:flex sm:px-4">
         <div className="w-full max-w-xl">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />

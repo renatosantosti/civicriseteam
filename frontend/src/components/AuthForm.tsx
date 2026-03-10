@@ -47,7 +47,7 @@ export function AuthForm({ variant, onSignIn, onSignUp, onSuccess }: AuthFormPro
   };
 
   return (
-    <div className="w-full max-w-md rounded-xl border border-gray-700 bg-civic-card p-8 shadow-xl">
+    <div className="w-full max-w-md rounded-xl border border-gray-700 bg-civic-card p-4 shadow-xl sm:p-8">
       <div className="mb-8 flex justify-center">
         <Link to="/" className="flex items-center gap-2 text-xl font-semibold text-white">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-civic-orange text-white">

@@ -13,8 +13,8 @@ export const ChatInput = ({
   handleSubmit, 
   isLoading 
 }: ChatInputProps) => (
-  <div className="absolute bottom-0 right-0 border-t left-64 bg-gray-900/80 backdrop-blur-sm border-orange-500/10">
-    <div className="w-full max-w-3xl px-4 py-3 mx-auto">
+  <div className="absolute bottom-0 right-0 left-0 border-t lg:left-64 bg-gray-900/80 backdrop-blur-sm border-orange-500/10">
+    <div className="w-full max-w-3xl px-3 py-3 sm:px-4 mx-auto">
       <form onSubmit={handleSubmit}>
         <div className="relative">
           <textarea

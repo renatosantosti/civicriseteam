@@ -17,9 +17,9 @@ export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) 
         : 'bg-transparent'
     }`}
   >
-    <div className="flex items-start w-full max-w-3xl gap-4 mx-auto">
+    <div className="flex items-start w-full max-w-3xl gap-2 mx-auto sm:gap-4 px-2 sm:px-0">
       {message.role === 'assistant' ? (
-        <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 ml-4 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-orange-500 to-red-600">
+        <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 ml-0 sm:ml-4 text-sm font-medium text-white rounded-lg bg-gradient-to-r from-orange-500 to-red-600">
           AI
         </div>
       ) : (
@@ -27,7 +27,7 @@ export const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) 
           Y
         </div>
       )}
-      <div className={`flex-1 min-w-0 mr-4 ${isStreaming ? 'streaming-cursor' : ''}`}>
+      <div className={`flex-1 min-w-0 mr-0 sm:mr-4 ${isStreaming ? 'streaming-cursor' : ''}`}>
         {message.incidentWarning && (
           <div className="mb-3 border border-amber-400/40 bg-amber-500/10 text-amber-100 rounded-md p-3 text-xs">
             <p className="font-semibold">{message.incidentWarning.title}</p>

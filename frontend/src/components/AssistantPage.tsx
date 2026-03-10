@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { MessageSquare } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ChatInput } from './ChatInput';
@@ -38,6 +39,7 @@ export function AssistantPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const scrollToBottom = useCallback((smooth: boolean = false) => {
     if (messagesContainerRef.current) {
@@ -251,7 +253,7 @@ export function AssistantPage() {
   );
 
   return (
-    <div className="relative flex h-screen bg-gray-900">
+    <div className="relative flex h-screen bg-gray-900 min-h-0">
       <Sidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -263,8 +265,21 @@ export function AssistantPage() {
         editingTitle={editingTitle}
         setEditingTitle={setEditingTitle}
         handleUpdateChatTitle={handleUpdateChatTitle}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0 min-h-0">
+        <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 lg:hidden border-b border-gray-800">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white"
+            aria-label="Open chat list"
+          >
+            <MessageSquare className="h-5 w-5" />
+            Chats
+          </button>
+        </div>
         <TopBanner />
         {error && (
           <p className="mx-auto w-full max-w-3xl p-4 font-bold text-orange-500">{error}</p>
@@ -273,7 +288,7 @@ export function AssistantPage() {
           <>
             <div
               ref={messagesContainerRef}
-              className="messages-container flex-1 overflow-y-auto pb-24"
+              className="messages-container flex-1 overflow-y-auto pb-24 min-h-0"
             >
               <div className="mx-auto w-full max-w-3xl px-4">
                 {[...messages, pendingMessage]
